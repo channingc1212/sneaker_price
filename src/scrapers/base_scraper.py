@@ -25,9 +25,6 @@ class BaseScraper(ABC):
     def __init__(self, base_url: str):
         self.base_url = base_url
         self.session = None
-        self.rate_limiter = RateLimiter(
-            calls_per_minute=config.rate_limits.get(self.__class__.__name__, 60)
-        )
         
     @abstractmethod
     async def search_product(self, query: str, **kwargs) -> List[SneakerProduct]:
@@ -41,29 +38,23 @@ class BaseScraper(ABC):
     
     def _init_session(self):
         """Initialize a new session for requests."""
+        import requests
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
     
-    @with_retry()
+    @with_retry(max_retries=3, retry_delay=2)
     async def _make_request(self, url: str) -> str:
         """Make an HTTP request with error handling and retries."""
         if not self.session:
             self._init_session()
         
         try:
-            response = self.session.get(url, timeout=config.request_timeout)
+            response = self.session.get(url)
             response.raise_for_status()
-            
-            # Check for common anti-bot measures
-            if 'captcha' in response.text.lower():
-                raise Exception("Captcha detected")
-            if 'robot' in response.text.lower() and 'detected' in response.text.lower():
-                raise Exception("Bot detection triggered")
-                
             return response.text
-        except requests.RequestException as e:
+        except Exception as e:
             raise Exception(f"Failed to fetch {url}: {str(e)}")
     
     def clean_price(self, price_str: str) -> float:

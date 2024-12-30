@@ -1,5 +1,6 @@
 import os
 from typing import Dict
+from pathlib import Path
 from dotenv import load_dotenv
 
 class Config:
@@ -7,10 +8,16 @@ class Config:
     
     def __init__(self):
         # Load environment variables from .env file
-        load_dotenv()
+        env_path = Path(__file__).parent.parent.parent / "config" / ".env"
+        if not env_path.exists():
+            raise ValueError(f"Environment file not found at {env_path}")
+        
+        load_dotenv(env_path)
         
         # API Keys
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
+        if not self.openai_api_key:
+            raise ValueError("OPENAI_API_KEY not found in environment variables")
         
         # Scraper Settings
         self.max_retries = int(os.getenv('MAX_RETRIES', '3'))
@@ -25,11 +32,12 @@ class Config:
             "Dick's Sporting Goods": int(os.getenv('DICKS_RATE_LIMIT', '60'))
         }
     
-    def validate(self) -> bool:
-        """Validate that all required configuration is present."""
-        if not self.openai_api_key:
-            raise ValueError("OpenAI API key is required but not set in environment")
-        return True
+    @classmethod
+    def get_instance(cls):
+        """Get or create singleton instance."""
+        if not hasattr(cls, '_instance'):
+            cls._instance = cls()
+        return cls._instance
 
 # Create a singleton instance
-config = Config() 
+config = Config.get_instance() 
